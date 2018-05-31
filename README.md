@@ -1,7 +1,7 @@
 Redis Watcher
 ====
 
-Redis Watcher a [Redis](http://redis.io) watcher for [Casbin](https://github.com/casbin/casbin).
+Redis Watcher is a [Redis](http://redis.io) watcher for [Casbin](https://github.com/casbin/casbin).
 
 ## Installation
 
