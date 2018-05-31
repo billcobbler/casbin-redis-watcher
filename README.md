@@ -1,4 +1,4 @@
-Redis Watcher
+Redis Watcher [![Build Status](https://travis-ci.org/billcobbler/casbin-redis-watcher.png?branch=master)](https://travis-ci.org/billcobbler/casbin-redis-watcher)
 ====
 
 Redis Watcher is a [Redis](http://redis.io) watcher for [Casbin](https://github.com/casbin/casbin).
