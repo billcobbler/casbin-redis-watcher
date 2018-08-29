@@ -2,12 +2,15 @@
 
 
 [[projects]]
+  digest = "1:5d3e23515e7916c152cc665eda0f7eaf6fdf8fdfe7c3dbac97049bcbd649b33f"
   name = "github.com/Knetic/govaluate"
   packages = ["."]
+  pruneopts = "UT"
   revision = "d216395917cc49052c7c7094cf57f09657ca08a8"
   version = "v3.0.0"
 
 [[projects]]
+  digest = "1:2f30fb22e56424a767d5734756a4cffc489fcbac43146edb15ca5bf4e233cf0d"
   name = "github.com/casbin/casbin"
   packages = [
     ".",
@@ -18,35 +21,47 @@
     "persist/file-adapter",
     "rbac",
     "rbac/default-role-manager",
-    "util"
+    "util",
   ]
-  revision = "d71629e497929858300c38cd442098c178121c30"
-  version = "v1.5.0"
+  pruneopts = "UT"
+  revision = "695c374a6617e9cdc930e8666307a772577cbd70"
+  version = "v1.6.0"
 
 [[projects]]
+  digest = "1:0594af97b2f4cec6554086eeace6597e20a4b69466eb4ada25adf9f4300dddd2"
   name = "github.com/garyburd/redigo"
   packages = [
     "internal",
-    "redis"
+    "redis",
   ]
+  pruneopts = "UT"
   revision = "a69d19351219b6dd56f274f96d85a7014a2ec34e"
   version = "v1.6.0"
 
 [[projects]]
+  digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
   name = "github.com/pkg/errors"
   packages = ["."]
+  pruneopts = "UT"
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
 
 [[projects]]
+  digest = "1:88f749786c4a99b228dd919447c77c818c3675511cb2debcf918999edfbbf3e2"
   name = "github.com/rafaeljusto/redigomock"
   packages = ["."]
+  pruneopts = "UT"
   revision = "7ae0511314e9946bb0c87d6d485169ab2467a290"
   version = "v2.1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "90560606fc6fdf10d35c8dc233e1918128b4b7d4307cc4565a84197129bbee44"
+  input-imports = [
+    "github.com/casbin/casbin",
+    "github.com/casbin/casbin/persist",
+    "github.com/garyburd/redigo/redis",
+    "github.com/rafaeljusto/redigomock",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

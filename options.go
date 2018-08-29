@@ -3,10 +3,11 @@ package rediswatcher
 import "github.com/garyburd/redigo/redis"
 
 type WatcherOptions struct {
-	Channel    string
-	Connection redis.Conn
-	Password   string
-	Protocol   string
+	Channel    	string
+	PubConn 	redis.Conn
+	SubConn		redis.Conn
+	Password   	string
+	Protocol   	string
 }
 
 type WatcherOption func(*WatcherOptions)
@@ -29,8 +30,14 @@ func Protocol(protocol string) WatcherOption {
 	}
 }
 
-func WithRedisConnection(connection redis.Conn) WatcherOption {
+func WithRedisSubConnection(connection redis.Conn) WatcherOption {
 	return func(options *WatcherOptions) {
-		options.Connection = connection
+		options.SubConn = connection
+	}
+}
+
+func withRedisPubConnection(connection redis.Conn) WatcherOption {
+	return func (options *WatcherOptions) {
+		options.PubConn = connection
 	}
 }
