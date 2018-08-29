@@ -9,9 +9,10 @@ import (
 )
 
 type Watcher struct {
-	options    WatcherOptions
-	connection redis.Conn
-	callback   func(string)
+	options    	WatcherOptions
+	pubConn 	redis.Conn
+	subConn		redis.Conn
+	callback   	func(string)
 }
 
 // NewWatcher creates a new Watcher to be used with a Casbin enforcer
@@ -68,7 +69,7 @@ func (w *Watcher) SetUpdateCallback(callback func(string)) error {
 // Update publishes a message to all other casbin instances telling them to
 // invoke their update callback
 func (w *Watcher) Update() error {
-	if _, err := w.connection.Do("PUBLISH", w.options.Channel, "casbin rules updated"); err != nil {
+	if _, err := w.pubConn.Do("PUBLISH", w.options.Channel, "casbin rules updated"); err != nil {
 		return err
 	}
 
@@ -76,8 +77,21 @@ func (w *Watcher) Update() error {
 }
 
 func (w *Watcher) connect(addr string) error {
-	if w.options.Connection != nil {
-		w.connection = w.options.Connection
+	if err := w.connectPub(addr); err != nil {
+		return err
+	}
+
+	if err := w.connectSub(addr); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+
+func (w *Watcher) connectPub(addr string) error {
+	if w.options.PubConn != nil {
+		w.pubConn = w.options.PubConn
 		return nil
 	}
 
@@ -94,12 +108,34 @@ func (w *Watcher) connect(addr string) error {
 		}
 	}
 
-	w.connection = c
+	w.pubConn = c
 	return nil
 }
 
+func (w *Watcher) connectSub(addr string) error {
+	if w.options.SubConn != nil {
+		w.subConn = w.options.SubConn
+		return nil
+	}
+
+	c, err := redis.Dial(w.options.Protocol, addr)
+	if err != nil {
+		return err
+	}
+
+	if w.options.Password != "" {
+		_, err := c.Do("AUTH", w.options.Password)
+		if err != nil {
+			c.Close()
+			return err
+		}
+	}
+
+	w.subConn = c
+	return nil
+}
 func (w *Watcher) subscribe() error {
-	psc := redis.PubSubConn{Conn: w.connection}
+	psc := redis.PubSubConn{Conn: w.subConn}
 	if err := psc.Subscribe(w.options.Channel); err != nil {
 		return err
 	}
@@ -124,5 +160,6 @@ func (w *Watcher) subscribe() error {
 }
 
 func finalizer(w *Watcher) {
-	w.connection.Close()
+	w.subConn.Close()
+	w.pubConn.Close()
 }
