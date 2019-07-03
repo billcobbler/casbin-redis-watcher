@@ -9,10 +9,10 @@ import (
 )
 
 type Watcher struct {
-	options    	WatcherOptions
-	pubConn 	redis.Conn
-	subConn		redis.Conn
-	callback   	func(string)
+	options  WatcherOptions
+	pubConn  redis.Conn
+	subConn  redis.Conn
+	callback func(string)
 }
 
 // NewWatcher creates a new Watcher to be used with a Casbin enforcer
@@ -91,8 +91,19 @@ func (w *Watcher) SetUpdateCallback(callback func(string)) error {
 // Update publishes a message to all other casbin instances telling them to
 // invoke their update callback
 func (w *Watcher) Update() error {
-	if _, err := w.pubConn.Do("PUBLISH", w.options.Channel, "casbin rules updated"); err != nil {
-		return err
+	if w.options.Committed == nil {
+		if _, err := w.pubConn.Do("PUBLISH", w.options.Channel, "casbin rules updated"); err != nil {
+			return err
+		}
+	} else {
+		// use transaction. new a goroutine avoid to block
+		// the error of Update has been intentionally ignored. so it won't make anything wrong if we don't return error
+		go func() {
+			select {
+			case <-w.options.Committed:
+				_, _ = w.pubConn.Do("PUBLISH", w.options.Channel, "casbin rules updated")
+			}
+		}()
 	}
 
 	return nil
@@ -109,7 +120,6 @@ func (w *Watcher) connect(addr string) error {
 
 	return nil
 }
-
 
 func (w *Watcher) connectPub(addr string) error {
 	if w.options.PubConn != nil {

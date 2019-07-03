@@ -3,11 +3,12 @@ package rediswatcher
 import "github.com/garyburd/redigo/redis"
 
 type WatcherOptions struct {
-	Channel    	string
-	PubConn 	redis.Conn
-	SubConn		redis.Conn
-	Password   	string
-	Protocol   	string
+	Channel   string
+	PubConn   redis.Conn
+	SubConn   redis.Conn
+	Password  string
+	Protocol  string
+	Committed chan struct{} // for transaction, we should do: Committed <- struct{}{} after transaction is committed.
 }
 
 type WatcherOption func(*WatcherOptions)
@@ -37,7 +38,7 @@ func WithRedisSubConnection(connection redis.Conn) WatcherOption {
 }
 
 func withRedisPubConnection(connection redis.Conn) WatcherOption {
-	return func (options *WatcherOptions) {
+	return func(options *WatcherOptions) {
 		options.PubConn = connection
 	}
 }
