@@ -25,7 +25,7 @@ func TestWatcher(t *testing.T) {
 
 	c.Command("SUBSCRIBE", "/casbin").Expect(values)
 
-	w, err := NewWatcher("127.0.0.1:6379", WithRedisSubConnection(c), withRedisPubConnection(c))
+	w, err := NewWatcher("127.0.0.1:6379", WithRedisSubConnection(c), WithRedisPubConnection(c))
 	if err != nil {
 		t.Fatalf("Failed to connect to Redis: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestWithEnforcer(t *testing.T) {
 	values = append(values, interface{}([]byte("casbin rules updated")))
 	c.AddSubscriptionMessage(values)
 
-	w, err := NewWatcher("127.0.0.1:6379", WithRedisSubConnection(c), withRedisPubConnection(c))
+	w, err := NewWatcher("127.0.0.1:6379", WithRedisSubConnection(c), WithRedisPubConnection(c))
 	if err != nil {
 		t.Fatalf("Failed to connect to Redis: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestWithEnforcer(t *testing.T) {
 		if res != "casbin rules updated" {
 			t.Fatalf("Message should be 'casbin rules updated', received '%v' instead", res)
 		}
-	case <-time.After(time.Second * 2):
+	case <-time.After(time.Second * 5):
 		t.Fatal("Enforcer message timed out")
 	}
 }
