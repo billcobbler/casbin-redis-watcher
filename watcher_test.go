@@ -33,6 +33,20 @@ func TestWatcher(t *testing.T) {
 	if err := w.Update(); err != nil {
 		t.Fatalf("Failed watcher.Update(): %v", err)
 	}
+
+	closed := false
+	c.CloseMock = func() error {
+		closed = true
+		return nil
+	}
+
+	w.Close()
+	if !closed {
+		t.Fatal("watcher.Close() failed to close Redis connection")
+	}
+
+	// multiple closes should not panic
+	w.Close()
 }
 
 func TestWithEnforcer(t *testing.T) {
@@ -44,8 +58,8 @@ func TestWithEnforcer(t *testing.T) {
 
 	unsubValues := []interface{}{}
 	unsubValues = append(unsubValues, interface{}([]byte("unsubscribe")))
-	unsubValues = append(unsubValues, interface{}(nil))
-	unsubValues = append(unsubValues, interface{}([]byte("1")))
+	unsubValues = append(unsubValues, interface{}("a"))
+	unsubValues = append(unsubValues, interface{}([]byte("0")))
 	c.Command("UNSUBSCRIBE").Expect(unsubValues)
 
 	subValues := []interface{}{}

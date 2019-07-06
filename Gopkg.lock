@@ -10,12 +10,14 @@
   version = "v3.0.0"
 
 [[projects]]
-  digest = "1:2f30fb22e56424a767d5734756a4cffc489fcbac43146edb15ca5bf4e233cf0d"
+  digest = "1:d3d1f7bfcaaa5cc56c36d010937e28d1c6c38810b95086cd445eb433b83cbf75"
   name = "github.com/casbin/casbin"
   packages = [
     ".",
     "config",
     "effect",
+    "errors",
+    "log",
     "model",
     "persist",
     "persist/file-adapter",
@@ -24,8 +26,8 @@
     "util",
   ]
   pruneopts = "UT"
-  revision = "695c374a6617e9cdc930e8666307a772577cbd70"
-  version = "v1.6.0"
+  revision = "aaed1b7a7eac65d37ec4e15e308429fdf0bd6a9e"
+  version = "v1.9.1"
 
 [[projects]]
   digest = "1:0594af97b2f4cec6554086eeace6597e20a4b69466eb4ada25adf9f4300dddd2"
@@ -37,14 +39,6 @@
   pruneopts = "UT"
   revision = "a69d19351219b6dd56f274f96d85a7014a2ec34e"
   version = "v1.6.0"
-
-[[projects]]
-  digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
-  name = "github.com/pkg/errors"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
-  version = "v0.8.0"
 
 [[projects]]
   digest = "1:88f749786c4a99b228dd919447c77c818c3675511cb2debcf918999edfbbf3e2"
