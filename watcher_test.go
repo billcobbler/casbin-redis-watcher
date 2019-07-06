@@ -25,7 +25,7 @@ func TestWatcher(t *testing.T) {
 
 	c.Command("SUBSCRIBE", "/casbin").Expect(values)
 
-	w, err := NewWatcher("127.0.0.1:6379", WithRedisSubConnection(c), withRedisPubConnection(c))
+	w, err := NewWatcher("127.0.0.1:6379", WithRedisSubConnection(c), WithRedisPubConnection(c))
 	if err != nil {
 		t.Fatalf("Failed to connect to Redis: %v", err)
 	}
@@ -33,6 +33,20 @@ func TestWatcher(t *testing.T) {
 	if err := w.Update(); err != nil {
 		t.Fatalf("Failed watcher.Update(): %v", err)
 	}
+
+	closed := false
+	c.CloseMock = func() error {
+		closed = true
+		return nil
+	}
+
+	w.Close()
+	if !closed {
+		t.Fatal("watcher.Close() failed to close Redis connection")
+	}
+
+	// multiple closes should not panic
+	w.Close()
 }
 
 func TestWithEnforcer(t *testing.T) {
@@ -44,8 +58,8 @@ func TestWithEnforcer(t *testing.T) {
 
 	unsubValues := []interface{}{}
 	unsubValues = append(unsubValues, interface{}([]byte("unsubscribe")))
-	unsubValues = append(unsubValues, interface{}(nil))
-	unsubValues = append(unsubValues, interface{}([]byte("1")))
+	unsubValues = append(unsubValues, interface{}("a"))
+	unsubValues = append(unsubValues, interface{}([]byte("0")))
 	c.Command("UNSUBSCRIBE").Expect(unsubValues)
 
 	subValues := []interface{}{}
@@ -60,7 +74,7 @@ func TestWithEnforcer(t *testing.T) {
 	values = append(values, interface{}([]byte("casbin rules updated")))
 	c.AddSubscriptionMessage(values)
 
-	w, err := NewWatcher("127.0.0.1:6379", WithRedisSubConnection(c), withRedisPubConnection(c))
+	w, err := NewWatcher("127.0.0.1:6379", WithRedisSubConnection(c), WithRedisPubConnection(c))
 	if err != nil {
 		t.Fatalf("Failed to connect to Redis: %v", err)
 	}
@@ -85,7 +99,7 @@ func TestWithEnforcer(t *testing.T) {
 		if res != "casbin rules updated" {
 			t.Fatalf("Message should be 'casbin rules updated', received '%v' instead", res)
 		}
-	case <-time.After(time.Second * 2):
+	case <-time.After(time.Second * 5):
 		t.Fatal("Enforcer message timed out")
 	}
 }

@@ -2,6 +2,7 @@ package rediswatcher
 
 import (
 	"runtime"
+	"sync"
 
 	"fmt"
 	"github.com/casbin/casbin/persist"
@@ -9,10 +10,12 @@ import (
 )
 
 type Watcher struct {
-	options    	WatcherOptions
-	pubConn 	redis.Conn
-	subConn		redis.Conn
-	callback   	func(string)
+	options  WatcherOptions
+	pubConn  redis.Conn
+	subConn  redis.Conn
+	callback func(string)
+	closed   chan struct{}
+	once     sync.Once
 }
 
 // NewWatcher creates a new Watcher to be used with a Casbin enforcer
@@ -29,7 +32,9 @@ type Watcher struct {
 // 				w, err := rediswatcher.NewWatcher("", rediswatcher.WithRedisConnection(c)
 //
 func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) {
-	w := &Watcher{}
+	w := &Watcher{
+		closed: make(chan struct{}),
+	}
 
 	w.options = WatcherOptions{
 		Channel:  "/casbin",
@@ -49,9 +54,14 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 
 	go func() {
 		for {
-			err := w.subscribe()
-			if err != nil {
-				fmt.Printf("Failure from Redis subscription: %v", err)
+			select {
+			case <-w.closed:
+				return
+			default:
+				err := w.subscribe()
+				if err != nil {
+					fmt.Printf("Failure from Redis subscription: %v", err)
+				}
 			}
 		}
 	}()
@@ -61,7 +71,9 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 
 // NewPublishWatcher return a Watcher only publish but not subscribe
 func NewPublishWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) {
-	w := &Watcher{}
+	w := &Watcher{
+		closed: make(chan struct{}),
+	}
 
 	w.options = WatcherOptions{
 		Channel:  "/casbin",
@@ -98,6 +110,11 @@ func (w *Watcher) Update() error {
 	return nil
 }
 
+// Close disconnects the watcher from redis
+func (w *Watcher) Close() {
+	finalizer(w)
+}
+
 func (w *Watcher) connect(addr string) error {
 	if err := w.connectPub(addr); err != nil {
 		return err
@@ -109,7 +126,6 @@ func (w *Watcher) connect(addr string) error {
 
 	return nil
 }
-
 
 func (w *Watcher) connectPub(addr string) error {
 	if w.options.PubConn != nil {
@@ -182,6 +198,9 @@ func (w *Watcher) subscribe() error {
 }
 
 func finalizer(w *Watcher) {
-	w.subConn.Close()
-	w.pubConn.Close()
+	w.once.Do(func() {
+		close(w.closed)
+		w.subConn.Close()
+		w.pubConn.Close()
+	})
 }
