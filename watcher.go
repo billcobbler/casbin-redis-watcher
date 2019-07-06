@@ -67,6 +67,28 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 	return w, nil
 }
 
+// NewPublishWatcher return a Watcher only publish but not subscribe
+func NewPublishWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) {
+	w := &Watcher{}
+
+	w.options = WatcherOptions{
+		Channel:  "/casbin",
+		Protocol: "tcp",
+	}
+
+	for _, setter := range setters {
+		setter(&w.options)
+	}
+
+	if err := w.connect(addr); err != nil {
+		return nil, err
+	}
+
+	// call destructor when the object is released
+	runtime.SetFinalizer(w, finalizer)
+	return w, nil
+}
+
 // SetUpdateCallBack sets the update callback function invoked by the watcher
 // when the policy is updated. Defaults to Enforcer.LoadPolicy()
 func (w *Watcher) SetUpdateCallback(callback func(string)) error {
