@@ -1,10 +1,11 @@
 package rediswatcher
 
 import (
-	"github.com/casbin/casbin"
-	"github.com/rafaeljusto/redigomock"
 	"testing"
 	"time"
+
+	"github.com/casbin/casbin/v2"
+	"github.com/rafaeljusto/redigomock"
 )
 
 func TestWatcher(t *testing.T) {
@@ -79,8 +80,10 @@ func TestWithEnforcer(t *testing.T) {
 		t.Fatalf("Failed to connect to Redis: %v", err)
 	}
 
-	e := casbin.NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
-
+	e, err := casbin.NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+	if err != nil {
+		t.Fatalf("Failed to create enforcer: %v", err)
+	}
 	e.SetWatcher(w)
 
 	ch := make(chan string, 1)
