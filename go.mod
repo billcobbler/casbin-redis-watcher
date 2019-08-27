@@ -1,4 +1,4 @@
-module github.com/lucidhq/casbin-redis-watcher
+module github.com/lucidhq/casbin-redis-watcher/v2
 
 go 1.12
 
