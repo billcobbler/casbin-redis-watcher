@@ -5,7 +5,8 @@ import (
 	"sync"
 
 	"fmt"
-	"github.com/casbin/casbin/persist"
+
+	"github.com/casbin/casbin/v2/persist"
 	"github.com/garyburd/redigo/redis"
 )
 
