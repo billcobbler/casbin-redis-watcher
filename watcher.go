@@ -8,6 +8,7 @@ import (
 
 	"github.com/casbin/casbin/v2/persist"
 	"github.com/garyburd/redigo/redis"
+	"github.com/google/uuid"
 )
 
 type Watcher struct {
@@ -40,6 +41,7 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 	w.options = WatcherOptions{
 		Channel:  "/casbin",
 		Protocol: "tcp",
+		LocalID:  uuid.New().String(),
 	}
 
 	for _, setter := range setters {
@@ -79,6 +81,7 @@ func NewPublishWatcher(addr string, setters ...WatcherOption) (persist.Watcher, 
 	w.options = WatcherOptions{
 		Channel:  "/casbin",
 		Protocol: "tcp",
+		LocalID:  uuid.New().String(),
 	}
 
 	for _, setter := range setters {
@@ -104,7 +107,7 @@ func (w *Watcher) SetUpdateCallback(callback func(string)) error {
 // Update publishes a message to all other casbin instances telling them to
 // invoke their update callback
 func (w *Watcher) Update() error {
-	if _, err := w.pubConn.Do("PUBLISH", w.options.Channel, "casbin rules updated"); err != nil {
+	if _, err := w.pubConn.Do("PUBLISH", w.options.Channel, w.options.LocalID); err != nil {
 		return err
 	}
 
@@ -173,29 +176,74 @@ func (w *Watcher) connectSub(addr string) error {
 	w.subConn = c
 	return nil
 }
+
+func (w *Watcher) getMessages(psc *redis.PubSubConn) []interface{} {
+	messages := make([]interface{}, 1)
+	messages[0] = psc.Receive()
+	// only return 1 message at a time if SquashMessages not enabled
+	if !w.options.SquashMessages {
+		return messages
+	}
+	for {
+		if !psc.Peek() {
+			return messages
+		}
+		msg := psc.Receive()
+		if msg != nil {
+			switch msg.(type) {
+			case redis.Message:
+				messages = append(messages, msg)
+			case error:
+				messages = append(messages, msg)
+				return messages
+			default:
+				messages = append(messages, msg)
+			}
+		} else {
+			break
+		}
+	}
+	return messages
+}
+
 func (w *Watcher) subscribe() error {
 	psc := redis.PubSubConn{Conn: w.subConn}
+
 	if err := psc.Subscribe(w.options.Channel); err != nil {
 		return err
 	}
 	defer psc.Unsubscribe()
 
 	for {
-		switch n := psc.Receive().(type) {
-		case error:
-			return n
-		case redis.Message:
-			if w.callback != nil {
-				w.callback(string(n.Data))
-			}
-		case redis.Subscription:
-			if n.Count == 0 {
-				return nil
+		doCallback := false
+		var data string
+		messages := w.getMessages(&psc) // get all available messages
+		for _, msg := range messages {
+			switch n := msg.(type) {
+			case error:
+				return n
+			case redis.Message:
+				if w.callback != nil {
+					data = string(n.Data)
+					if !w.options.IgnoreSelf || (w.options.IgnoreSelf && data != w.options.LocalID) {
+						doCallback = true
+					}
+				}
+			case redis.Subscription:
+				if n.Count == 0 {
+					return nil
+				}
 			}
 		}
+		if doCallback {
+			w.callback(data) // data will be last message recieved
+		}
 	}
+}
 
-	return nil
+// return option settings
+func (w *Watcher) GetWatcherOptions() WatcherOptions {
+	return w.options
 }
 
 func finalizer(w *Watcher) {
