@@ -3,6 +3,7 @@ package rediswatcher
 import (
 	"runtime"
 	"sync"
+	"time"
 
 	"fmt"
 
@@ -12,13 +13,19 @@ import (
 )
 
 type Watcher struct {
-	options  WatcherOptions
-	pubConn  redis.Conn
-	subConn  redis.Conn
-	callback func(string)
-	closed   chan struct{}
-	once     sync.Once
+	options    WatcherOptions
+	pubConn    redis.Conn
+	subConn    redis.Conn
+	callback   func(string)
+	closed     chan struct{}
+	messagesIn chan redis.Message
+	once       sync.Once
 }
+
+const (
+	shortMessageInTimeout = 5 * time.Millisecond
+	longMessageInTimeout  = 1 * time.Minute
+)
 
 // NewWatcher creates a new Watcher to be used with a Casbin enforcer
 // addr is a redis target string in the format "host:port"
@@ -35,7 +42,8 @@ type Watcher struct {
 //
 func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) {
 	w := &Watcher{
-		closed: make(chan struct{}),
+		closed:     make(chan struct{}),
+		messagesIn: make(chan redis.Message),
 	}
 
 	w.options = WatcherOptions{
@@ -54,6 +62,8 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 
 	// call destructor when the object is released
 	runtime.SetFinalizer(w, finalizer)
+
+	w.messageInProcessor()
 
 	go func() {
 		for {
@@ -94,6 +104,7 @@ func NewPublishWatcher(addr string, setters ...WatcherOption) (persist.Watcher, 
 
 	// call destructor when the object is released
 	runtime.SetFinalizer(w, finalizer)
+
 	return w, nil
 }
 
@@ -177,35 +188,6 @@ func (w *Watcher) connectSub(addr string) error {
 	return nil
 }
 
-func (w *Watcher) getMessages(psc *redis.PubSubConn) []interface{} {
-	messages := make([]interface{}, 1)
-	messages[0] = psc.Receive()
-	// only return 1 message at a time if SquashMessages not enabled
-	if !w.options.SquashMessages {
-		return messages
-	}
-	for {
-		if !psc.Peek() {
-			return messages
-		}
-		msg := psc.Receive()
-		if msg != nil {
-			switch msg.(type) {
-			case redis.Message:
-				messages = append(messages, msg)
-			case error:
-				messages = append(messages, msg)
-				return messages
-			default:
-				messages = append(messages, msg)
-			}
-		} else {
-			break
-		}
-	}
-	return messages
-}
-
 func (w *Watcher) subscribe() error {
 	psc := redis.PubSubConn{Conn: w.subConn}
 
@@ -215,30 +197,60 @@ func (w *Watcher) subscribe() error {
 	defer psc.Unsubscribe()
 
 	for {
-		doCallback := false
-		var data string
-		messages := w.getMessages(&psc) // get all available messages
-		for _, msg := range messages {
-			switch n := msg.(type) {
-			case error:
-				return n
-			case redis.Message:
+		msg := psc.Receive()
+		switch n := msg.(type) {
+		case error:
+			return n
+		case redis.Message:
+			w.messagesIn <- msg.(redis.Message)
+		case redis.Subscription:
+			if n.Count == 0 {
+				return nil
+			}
+		}
+
+	}
+}
+
+func (w *Watcher) messageInProcessor() {
+	doCallback := false
+	var data string
+	timeOut := longMessageInTimeout
+	go func() {
+		for {
+			select {
+			case <-w.closed:
+				return
+			case msg := <-w.messagesIn:
 				if w.callback != nil {
-					data = string(n.Data)
-					if !w.options.IgnoreSelf || (w.options.IgnoreSelf && data != w.options.LocalID) {
+					data = string(msg.Data)
+
+					switch {
+					case !w.options.IgnoreSelf && !w.options.SquashMessages:
+						w.callback(data)
+					case w.options.IgnoreSelf && data == w.options.LocalID: // ignore message
+					case !w.options.IgnoreSelf && w.options.SquashMessages:
 						doCallback = true
+					case w.options.IgnoreSelf && data != w.options.LocalID && !w.options.SquashMessages:
+						w.callback(data)
+					case w.options.IgnoreSelf && data != w.options.LocalID && w.options.SquashMessages:
+						doCallback = true
+					default:
+						w.callback(data)
 					}
 				}
-			case redis.Subscription:
-				if n.Count == 0 {
-					return nil
+				if doCallback { // set short timeout
+					timeOut = shortMessageInTimeout
+				}
+			case <-time.After(timeOut):
+				if doCallback {
+					w.callback(data) // data will be last message recieved
+					doCallback = false
+					timeOut = longMessageInTimeout // long timeout
 				}
 			}
 		}
-		if doCallback {
-			w.callback(data) // data will be last message recieved
-		}
-	}
+	}()
 }
 
 // return option settings
