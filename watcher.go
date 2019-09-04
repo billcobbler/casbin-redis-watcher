@@ -3,21 +3,29 @@ package rediswatcher
 import (
 	"runtime"
 	"sync"
+	"time"
 
 	"fmt"
 
 	"github.com/casbin/casbin/v2/persist"
 	"github.com/garyburd/redigo/redis"
+	"github.com/google/uuid"
 )
 
 type Watcher struct {
-	options  WatcherOptions
-	pubConn  redis.Conn
-	subConn  redis.Conn
-	callback func(string)
-	closed   chan struct{}
-	once     sync.Once
+	options    WatcherOptions
+	pubConn    redis.Conn
+	subConn    redis.Conn
+	callback   func(string)
+	closed     chan struct{}
+	messagesIn chan redis.Message
+	once       sync.Once
 }
+
+const (
+	shortMessageInTimeout = 5 * time.Millisecond
+	longMessageInTimeout  = 1 * time.Minute
+)
 
 // NewWatcher creates a new Watcher to be used with a Casbin enforcer
 // addr is a redis target string in the format "host:port"
@@ -34,12 +42,14 @@ type Watcher struct {
 //
 func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) {
 	w := &Watcher{
-		closed: make(chan struct{}),
+		closed:     make(chan struct{}),
+		messagesIn: make(chan redis.Message),
 	}
 
 	w.options = WatcherOptions{
 		Channel:  "/casbin",
 		Protocol: "tcp",
+		LocalID:  uuid.New().String(),
 	}
 
 	for _, setter := range setters {
@@ -52,6 +62,8 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 
 	// call destructor when the object is released
 	runtime.SetFinalizer(w, finalizer)
+
+	w.messageInProcessor()
 
 	go func() {
 		for {
@@ -79,6 +91,7 @@ func NewPublishWatcher(addr string, setters ...WatcherOption) (persist.Watcher, 
 	w.options = WatcherOptions{
 		Channel:  "/casbin",
 		Protocol: "tcp",
+		LocalID:  uuid.New().String(),
 	}
 
 	for _, setter := range setters {
@@ -91,6 +104,7 @@ func NewPublishWatcher(addr string, setters ...WatcherOption) (persist.Watcher, 
 
 	// call destructor when the object is released
 	runtime.SetFinalizer(w, finalizer)
+
 	return w, nil
 }
 
@@ -104,7 +118,7 @@ func (w *Watcher) SetUpdateCallback(callback func(string)) error {
 // Update publishes a message to all other casbin instances telling them to
 // invoke their update callback
 func (w *Watcher) Update() error {
-	if _, err := w.pubConn.Do("PUBLISH", w.options.Channel, "casbin rules updated"); err != nil {
+	if _, err := w.pubConn.Do("PUBLISH", w.options.Channel, w.options.LocalID); err != nil {
 		return err
 	}
 
@@ -173,29 +187,75 @@ func (w *Watcher) connectSub(addr string) error {
 	w.subConn = c
 	return nil
 }
+
 func (w *Watcher) subscribe() error {
 	psc := redis.PubSubConn{Conn: w.subConn}
+
 	if err := psc.Subscribe(w.options.Channel); err != nil {
 		return err
 	}
 	defer psc.Unsubscribe()
 
 	for {
-		switch n := psc.Receive().(type) {
+		msg := psc.Receive()
+		switch n := msg.(type) {
 		case error:
 			return n
 		case redis.Message:
-			if w.callback != nil {
-				w.callback(string(n.Data))
-			}
+			w.messagesIn <- msg.(redis.Message)
 		case redis.Subscription:
 			if n.Count == 0 {
 				return nil
 			}
 		}
-	}
 
-	return nil
+	}
+}
+
+func (w *Watcher) messageInProcessor() {
+	doCallback := false
+	var data string
+	timeOut := longMessageInTimeout
+	go func() {
+		for {
+			select {
+			case <-w.closed:
+				return
+			case msg := <-w.messagesIn:
+				if w.callback != nil {
+					data = string(msg.Data)
+
+					switch {
+					case !w.options.IgnoreSelf && !w.options.SquashMessages:
+						w.callback(data)
+					case w.options.IgnoreSelf && data == w.options.LocalID: // ignore message
+					case !w.options.IgnoreSelf && w.options.SquashMessages:
+						doCallback = true
+					case w.options.IgnoreSelf && data != w.options.LocalID && !w.options.SquashMessages:
+						w.callback(data)
+					case w.options.IgnoreSelf && data != w.options.LocalID && w.options.SquashMessages:
+						doCallback = true
+					default:
+						w.callback(data)
+					}
+				}
+				if doCallback { // set short timeout
+					timeOut = shortMessageInTimeout
+				}
+			case <-time.After(timeOut):
+				if doCallback {
+					w.callback(data) // data will be last message recieved
+					doCallback = false
+					timeOut = longMessageInTimeout // long timeout
+				}
+			}
+		}
+	}()
+}
+
+// return option settings
+func (w *Watcher) GetWatcherOptions() WatcherOptions {
+	return w.options
 }
 
 func finalizer(w *Watcher) {
