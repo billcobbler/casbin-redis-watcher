@@ -12,18 +12,11 @@ type testConn struct {
 	redigomock.Conn
 }
 
-func TestRunTests(t *testing.T) {
-	testWatcher(t)
-	testWithEnforcer(t)
-	testWithEnforcerSquash(t)
-	testWithEnforcerIgnoreSelf(t)
-}
-
 func NewTestConn() *testConn {
 	tc := &testConn{*redigomock.NewConn()}
 	return tc
 }
-func testWatcher(t *testing.T) {
+func TestWatcher(t *testing.T) {
 	if _, err := NewWatcher(""); err == nil {
 		t.Error("Connecting to nothing should fail")
 	}
@@ -69,7 +62,7 @@ func testWatcher(t *testing.T) {
 	w.Close()
 }
 
-func testWithEnforcer(t *testing.T) {
+func TestWithEnforcer(t *testing.T) {
 	// setup mock redis
 	c := NewTestConn()
 	c.Clear()
@@ -126,7 +119,7 @@ func testWithEnforcer(t *testing.T) {
 	}
 }
 
-func testWithEnforcerSquash(t *testing.T) {
+func TestWithEnforcerSquash(t *testing.T) {
 	// setup mock redis
 	c := NewTestConn()
 	c.Clear()
@@ -193,7 +186,7 @@ func testWithEnforcerSquash(t *testing.T) {
 	}
 }
 
-func testWithEnforcerIgnoreSelf(t *testing.T) {
+func TestWithEnforcerIgnoreSelf(t *testing.T) {
 	// setup mock redis
 	c := NewTestConn()
 	c.Clear()
