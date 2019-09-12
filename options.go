@@ -1,16 +1,22 @@
 package rediswatcher
 
-import "github.com/garyburd/redigo/redis"
+import (
+	"time"
+
+	"github.com/garyburd/redigo/redis"
+)
 
 type WatcherOptions struct {
-	Channel    string
-	PubConn    redis.Conn
-	SubConn    redis.Conn
-	Password   string
-	Protocol   string
-	IgnoreSelf bool
-	LocalID    string
-	SquashMessages bool
+	Channel            string
+	PubConn            redis.Conn
+	SubConn            redis.Conn
+	Password           string
+	Protocol           string
+	IgnoreSelf         bool
+	LocalID            string
+	SquashMessages     bool
+	SquashTimeoutShort time.Duration
+	SquashTimeoutLong  time.Duration
 }
 
 type WatcherOption func(*WatcherOptions)
@@ -57,8 +63,20 @@ func IgnoreSelf(ignore bool) WatcherOption {
 	}
 }
 
-func SquashMessages(squash bool)  WatcherOption {
+func SquashMessages(squash bool) WatcherOption {
 	return func(options *WatcherOptions) {
 		options.SquashMessages = squash
+	}
+}
+
+func SquashTimeoutShort(d time.Duration) WatcherOption {
+	return func(options *WatcherOptions) {
+		options.SquashTimeoutShort = d
+	}
+}
+
+func SquashTimeoutLong(d time.Duration) WatcherOption {
+	return func(options *WatcherOptions) {
+		options.SquashTimeoutLong = d
 	}
 }

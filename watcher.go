@@ -23,8 +23,8 @@ type Watcher struct {
 }
 
 const (
-	shortMessageInTimeout = 5 * time.Millisecond
-	longMessageInTimeout  = 1 * time.Minute
+	defaultShortMessageInTimeout = 1 * time.Millisecond
+	defaultLongMessageInTimeout  = 1 * time.Minute
 )
 
 // NewWatcher creates a new Watcher to be used with a Casbin enforcer
@@ -47,9 +47,11 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 	}
 
 	w.options = WatcherOptions{
-		Channel:  "/casbin",
-		Protocol: "tcp",
-		LocalID:  uuid.New().String(),
+		Channel:            "/casbin",
+		Protocol:           "tcp",
+		LocalID:            uuid.New().String(),
+		SquashTimeoutShort: defaultShortMessageInTimeout,
+		SquashTimeoutLong:  defaultLongMessageInTimeout,
 	}
 
 	for _, setter := range setters {
@@ -89,9 +91,11 @@ func NewPublishWatcher(addr string, setters ...WatcherOption) (persist.Watcher, 
 	}
 
 	w.options = WatcherOptions{
-		Channel:  "/casbin",
-		Protocol: "tcp",
-		LocalID:  uuid.New().String(),
+		Channel:            "/casbin",
+		Protocol:           "tcp",
+		LocalID:            uuid.New().String(),
+		SquashTimeoutShort: defaultShortMessageInTimeout,
+		SquashTimeoutLong:  defaultLongMessageInTimeout,
 	}
 
 	for _, setter := range setters {
@@ -215,7 +219,7 @@ func (w *Watcher) subscribe() error {
 func (w *Watcher) messageInProcessor() {
 	doCallback := false
 	var data string
-	timeOut := longMessageInTimeout
+	timeOut := w.options.SquashTimeoutLong
 	go func() {
 		for {
 			select {
@@ -240,13 +244,13 @@ func (w *Watcher) messageInProcessor() {
 					}
 				}
 				if doCallback { // set short timeout
-					timeOut = shortMessageInTimeout
+					timeOut = w.options.SquashTimeoutShort
 				}
 			case <-time.After(timeOut):
 				if doCallback {
 					w.callback(data) // data will be last message recieved
 					doCallback = false
-					timeOut = longMessageInTimeout // long timeout
+					timeOut = w.options.SquashTimeoutLong // long timeout
 				}
 			}
 		}
