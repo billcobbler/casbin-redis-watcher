@@ -1,4 +1,4 @@
-module github.com/moranmathias/casbin-redis-watcher/v2
+module github.com/billcobbler/casbin-redis-watcher/v2
 
 go 1.12
 
