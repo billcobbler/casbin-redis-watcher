@@ -114,7 +114,7 @@ func TestWithEnforcer(t *testing.T) {
 		if res != "casbin rules updated" {
 			t.Fatalf("Message should be 'casbin rules updated', received '%v' instead", res)
 		}
-	case <-time.After(time.Second * 5):
+	case <-time.After(time.Second * 30):
 		t.Fatal("Enforcer message timed out")
 	}
 }
