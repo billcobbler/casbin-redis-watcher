@@ -13,14 +13,28 @@ import (
 )
 
 type Watcher struct {
-	options    WatcherOptions
-	pubConn    redis.Conn
-	subConn    redis.Conn
-	callback   func(string)
-	closed     chan struct{}
-	messagesIn chan redis.Message
-	once       sync.Once
+	options         WatcherOptions
+	pubConn         redis.Conn
+	subConn         redis.Conn
+	callback        func(string)
+	metricsCallback func(*WatcherMetrics)
+	closed          chan struct{}
+	messagesIn      chan redis.Message
+	once            sync.Once
 }
+
+type WatcherMetrics struct {
+	Name      string
+	LatencyMs float64
+	LocalID   string
+	Channel   string
+	Protocol  string
+}
+
+const (
+	publishMetric   = "publish"
+	subscribeMetric = "subscribe"
+)
 
 const (
 	defaultShortMessageInTimeout = 1 * time.Millisecond
@@ -119,11 +133,24 @@ func (w *Watcher) SetUpdateCallback(callback func(string)) error {
 	return nil
 }
 
+// SetMetricsCallback sets the callback function to be called if performance
+// metric collection is enabled.
+func (w *Watcher) SetMetricsCallback(callback func(*WatcherMetrics)) error {
+	w.metricsCallback = callback
+	return nil
+}
+
 // Update publishes a message to all other casbin instances telling them to
 // invoke their update callback
 func (w *Watcher) Update() error {
+	startTime := time.Now()
 	if _, err := w.pubConn.Do("PUBLISH", w.options.Channel, w.options.LocalID); err != nil {
 		return err
+	}
+	if w.options.RecordMetrics {
+		watcherMetrics := w.createMetrics(publishMetric)
+		watcherMetrics.LatencyMs = float64(time.Since(startTime)) / float64(time.Millisecond)
+		w.metricsCallback(watcherMetrics)
 	}
 
 	return nil
@@ -200,6 +227,9 @@ func (w *Watcher) subscribe() error {
 	}
 	defer psc.Unsubscribe()
 
+	if w.options.RecordMetrics {
+		w.metricsCallback(w.createMetrics(subscribeMetric))
+	}
 	for {
 		msg := psc.Receive()
 		switch n := msg.(type) {
@@ -255,6 +285,15 @@ func (w *Watcher) messageInProcessor() {
 			}
 		}
 	}()
+}
+
+func (w *Watcher) createMetrics(metricsName string) *WatcherMetrics {
+	return &WatcherMetrics{
+		Name:     metricsName,
+		Channel:  w.options.Channel,
+		LocalID:  w.options.LocalID,
+		Protocol: w.options.Protocol,
+	}
 }
 
 // return option settings
