@@ -213,21 +213,23 @@ func (w *Watcher) dial(addr string) (*redis.Conn, error) {
 	if w.options.RecordMetrics != nil {
 		w.options.RecordMetrics(w.createMetrics(RedisDialMetric, startTime, nil))
 	}
-	startTime = time.Now()
-	_, err = c.Do("AUTH", w.options.Password)
-	if err != nil {
-		if w.options.RecordMetrics != nil {
-			w.options.RecordMetrics(w.createMetrics(RedisConnDoAuthMetric, startTime, err))
-		}
+	if w.options.Password != "" {
 		startTime = time.Now()
-		err2 := c.Close()
-		if w.options.RecordMetrics != nil {
-			w.options.RecordMetrics(w.createMetrics(RedisConnCloseMetric, startTime, err2))
+		_, err = c.Do("AUTH", w.options.Password)
+		if err != nil {
+			if w.options.RecordMetrics != nil {
+				w.options.RecordMetrics(w.createMetrics(RedisConnDoAuthMetric, startTime, err))
+			}
+			startTime = time.Now()
+			err2 := c.Close()
+			if w.options.RecordMetrics != nil {
+				w.options.RecordMetrics(w.createMetrics(RedisConnCloseMetric, startTime, err2))
+			}
+			return nil, err
 		}
-		return nil, err
-	}
-	if w.options.RecordMetrics != nil {
-		w.options.RecordMetrics(w.createMetrics(RedisConnDoAuthMetric, startTime, nil))
+		if w.options.RecordMetrics != nil {
+			w.options.RecordMetrics(w.createMetrics(RedisConnDoAuthMetric, startTime, nil))
+		}
 	}
 	return &c, nil
 }
