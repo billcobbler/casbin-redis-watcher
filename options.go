@@ -14,7 +14,7 @@ type WatcherOptions struct {
 	Protocol           string
 	IgnoreSelf         bool
 	LocalID            string
-	RecordMetrics      bool
+	RecordMetrics      func(*WatcherMetrics)
 	SquashMessages     bool
 	SquashTimeoutShort time.Duration
 	SquashTimeoutLong  time.Duration
@@ -70,9 +70,9 @@ func SquashMessages(squash bool) WatcherOption {
 	}
 }
 
-func RecordMetrics(record bool) WatcherOption {
+func RecordMetrics(callback func(*WatcherMetrics)) WatcherOption {
 	return func(options *WatcherOptions) {
-		options.RecordMetrics = record
+		options.RecordMetrics = callback
 	}
 }
 
