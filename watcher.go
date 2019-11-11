@@ -33,13 +33,13 @@ type WatcherMetrics struct {
 }
 
 const (
-	RedisConnDoAuthMetric    = "RedisConnDoAuth"
-	RedisConnCloseMetric     = "RedisConnClose"
-	RedisDialMetric          = "RedisDial"
-	PubConnPublishMetric     = "PubConnPublish"
-	SubConnReceiveMetric     = "SubConnReceive"
-	SubConnSubscribeMetric   = "SubConnSubscribe"
-	SubConnUnsubscribeMetric = "SubConnUnsubscribe"
+	RedisDoAuthMetric       = "RedisDoAuth"
+	RedisCloseMetric        = "RedisClose"
+	RedisDialMetric         = "RedisDial"
+	PubSubPublishMetric     = "PubSubPublish"
+	PubSubReceiveMetric     = "PubSubReceive"
+	PubSubSubscribeMetric   = "PubSubSubscribe"
+	PubSubUnsubscribeMetric = "PubSubUnsubscribe"
 )
 
 const (
@@ -145,12 +145,12 @@ func (w *Watcher) Update() error {
 	startTime := time.Now()
 	if _, err := w.pubConn.Do("PUBLISH", w.options.Channel, w.options.LocalID); err != nil {
 		if w.options.RecordMetrics != nil {
-			w.options.RecordMetrics(w.createMetrics(PubConnPublishMetric, startTime, err))
+			w.options.RecordMetrics(w.createMetrics(PubSubPublishMetric, startTime, err))
 		}
 		return err
 	}
 	if w.options.RecordMetrics != nil {
-		w.options.RecordMetrics(w.createMetrics(PubConnPublishMetric, startTime, nil))
+		w.options.RecordMetrics(w.createMetrics(PubSubPublishMetric, startTime, nil))
 	}
 
 	return nil
@@ -218,17 +218,17 @@ func (w *Watcher) dial(addr string) (*redis.Conn, error) {
 		_, err = c.Do("AUTH", w.options.Password)
 		if err != nil {
 			if w.options.RecordMetrics != nil {
-				w.options.RecordMetrics(w.createMetrics(RedisConnDoAuthMetric, startTime, err))
+				w.options.RecordMetrics(w.createMetrics(RedisDoAuthMetric, startTime, err))
 			}
 			startTime = time.Now()
 			err2 := c.Close()
 			if w.options.RecordMetrics != nil {
-				w.options.RecordMetrics(w.createMetrics(RedisConnCloseMetric, startTime, err2))
+				w.options.RecordMetrics(w.createMetrics(RedisCloseMetric, startTime, err2))
 			}
 			return nil, err
 		}
 		if w.options.RecordMetrics != nil {
-			w.options.RecordMetrics(w.createMetrics(RedisConnDoAuthMetric, startTime, nil))
+			w.options.RecordMetrics(w.createMetrics(RedisDoAuthMetric, startTime, nil))
 		}
 	}
 	return &c, nil
@@ -238,7 +238,7 @@ func (w *Watcher) unsubscribe(psc redis.PubSubConn) {
 	startTime := time.Now()
 	err := psc.Unsubscribe()
 	if w.options.RecordMetrics != nil {
-		w.options.RecordMetrics(w.createMetrics(SubConnUnsubscribeMetric, startTime, err))
+		w.options.RecordMetrics(w.createMetrics(PubSubUnsubscribeMetric, startTime, err))
 	}
 }
 
@@ -247,12 +247,12 @@ func (w *Watcher) subscribe() error {
 	startTime := time.Now()
 	if err := psc.Subscribe(w.options.Channel); err != nil {
 		if w.options.RecordMetrics != nil {
-			w.options.RecordMetrics(w.createMetrics(SubConnSubscribeMetric, startTime, err))
+			w.options.RecordMetrics(w.createMetrics(PubSubSubscribeMetric, startTime, err))
 		}
 		return err
 	}
 	if w.options.RecordMetrics != nil {
-		w.options.RecordMetrics(w.createMetrics(SubConnSubscribeMetric, startTime, nil))
+		w.options.RecordMetrics(w.createMetrics(PubSubSubscribeMetric, startTime, nil))
 	}
 	defer w.unsubscribe(psc)
 
@@ -262,19 +262,19 @@ func (w *Watcher) subscribe() error {
 		switch n := msg.(type) {
 		case error:
 			if w.options.RecordMetrics != nil {
-				w.options.RecordMetrics(w.createMetrics(SubConnReceiveMetric, startTime, n))
+				w.options.RecordMetrics(w.createMetrics(PubSubReceiveMetric, startTime, n))
 			}
 			return n
 		case redis.Message:
 			if w.options.RecordMetrics != nil {
-				watcherMetrics := w.createMetrics(SubConnReceiveMetric, startTime, nil)
+				watcherMetrics := w.createMetrics(PubSubReceiveMetric, startTime, nil)
 				watcherMetrics.MessageSize = int64(len(n.Data))
 				w.options.RecordMetrics(watcherMetrics)
 			}
 			w.messagesIn <- msg.(redis.Message)
 		case redis.Subscription:
 			if w.options.RecordMetrics != nil {
-				w.options.RecordMetrics(w.createMetrics(SubConnReceiveMetric, startTime, nil))
+				w.options.RecordMetrics(w.createMetrics(PubSubReceiveMetric, startTime, nil))
 			}
 			if n.Count == 0 {
 				return nil
@@ -347,12 +347,12 @@ func finalizer(w *Watcher) {
 		startTime := time.Now()
 		err := w.subConn.Close()
 		if w.options.RecordMetrics != nil {
-			w.options.RecordMetrics(w.createMetrics(RedisConnCloseMetric, startTime, err))
+			w.options.RecordMetrics(w.createMetrics(RedisCloseMetric, startTime, err))
 		}
 		startTime = time.Now()
 		err = w.pubConn.Close()
 		if w.options.RecordMetrics != nil {
-			w.options.RecordMetrics(w.createMetrics(RedisConnCloseMetric, startTime, err))
+			w.options.RecordMetrics(w.createMetrics(RedisCloseMetric, startTime, err))
 		}
 	})
 }
