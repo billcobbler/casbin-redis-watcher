@@ -13,13 +13,14 @@ import (
 )
 
 type Watcher struct {
-	options    WatcherOptions
-	pubConn    redis.Conn
-	subConn    redis.Conn
-	callback   func(string)
-	closed     chan struct{}
-	messagesIn chan redis.Message
-	once       sync.Once
+	options         WatcherOptions
+	pubConn         redis.Conn
+	subConn         redis.Conn
+	callback        func(string)
+	closed          chan struct{}
+	messagesIn      chan redis.Message
+	once            sync.Once
+	callbackPending bool
 }
 
 type WatcherMetrics struct {
@@ -137,6 +138,15 @@ func NewPublishWatcher(addr string, setters ...WatcherOption) (persist.Watcher, 
 func (w *Watcher) SetUpdateCallback(callback func(string)) error {
 	w.callback = callback
 	return nil
+}
+
+// IsCallbackPending
+func (w *Watcher) IsCallbackPending(shouldClear bool) bool {
+	r := w.callbackPending
+	if shouldClear {
+		w.callbackPending = false
+	}
+	return r
 }
 
 // Update publishes a message to all other casbin instances telling them to
@@ -285,7 +295,7 @@ func (w *Watcher) subscribe() error {
 }
 
 func (w *Watcher) messageInProcessor() {
-	doCallback := false
+	w.callbackPending = false
 	var data string
 	timeOut := w.options.SquashTimeoutLong
 	go func() {
@@ -302,22 +312,22 @@ func (w *Watcher) messageInProcessor() {
 						w.callback(data)
 					case w.options.IgnoreSelf && data == w.options.LocalID: // ignore message
 					case !w.options.IgnoreSelf && w.options.SquashMessages:
-						doCallback = true
+						w.callbackPending = true
 					case w.options.IgnoreSelf && data != w.options.LocalID && !w.options.SquashMessages:
 						w.callback(data)
 					case w.options.IgnoreSelf && data != w.options.LocalID && w.options.SquashMessages:
-						doCallback = true
+						w.callbackPending = true
 					default:
 						w.callback(data)
 					}
 				}
-				if doCallback { // set short timeout
+				if w.callbackPending { // set short timeout
 					timeOut = w.options.SquashTimeoutShort
 				}
 			case <-time.After(timeOut):
-				if doCallback {
+				if w.callbackPending {
 					w.callback(data) // data will be last message recieved
-					doCallback = false
+					w.callbackPending = false
 					timeOut = w.options.SquashTimeoutLong // long timeout
 				}
 			}
