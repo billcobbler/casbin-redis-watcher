@@ -18,6 +18,7 @@ type WatcherOptions struct {
 	SquashMessages     bool
 	SquashTimeoutShort time.Duration
 	SquashTimeoutLong  time.Duration
+	callbackPending    bool
 }
 
 type WatcherOption func(*WatcherOptions)
@@ -86,4 +87,13 @@ func SquashTimeoutLong(d time.Duration) WatcherOption {
 	return func(options *WatcherOptions) {
 		options.SquashTimeoutLong = d
 	}
+}
+
+// IsCallbackPending
+func IsCallbackPending(w *Watcher, shouldClear bool) bool {
+	r := w.options.callbackPending
+	if shouldClear {
+		w.options.callbackPending = false
+	}
+	return r
 }
