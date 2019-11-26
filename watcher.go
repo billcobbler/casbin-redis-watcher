@@ -285,7 +285,7 @@ func (w *Watcher) subscribe() error {
 }
 
 func (w *Watcher) messageInProcessor() {
-	doCallback := false
+	w.options.callbackPending = false
 	var data string
 	timeOut := w.options.SquashTimeoutLong
 	go func() {
@@ -302,22 +302,22 @@ func (w *Watcher) messageInProcessor() {
 						w.callback(data)
 					case w.options.IgnoreSelf && data == w.options.LocalID: // ignore message
 					case !w.options.IgnoreSelf && w.options.SquashMessages:
-						doCallback = true
+						w.options.callbackPending = true
 					case w.options.IgnoreSelf && data != w.options.LocalID && !w.options.SquashMessages:
 						w.callback(data)
 					case w.options.IgnoreSelf && data != w.options.LocalID && w.options.SquashMessages:
-						doCallback = true
+						w.options.callbackPending = true
 					default:
 						w.callback(data)
 					}
 				}
-				if doCallback { // set short timeout
+				if w.options.callbackPending { // set short timeout
 					timeOut = w.options.SquashTimeoutShort
 				}
 			case <-time.After(timeOut):
-				if doCallback {
+				if w.options.callbackPending {
 					w.callback(data) // data will be last message recieved
-					doCallback = false
+					w.options.callbackPending = false
 					timeOut = w.options.SquashTimeoutLong // long timeout
 				}
 			}
