@@ -22,6 +22,26 @@ type Watcher struct {
 	once       sync.Once
 }
 
+type WatcherMetrics struct {
+	Name        string
+	LatencyMs   float64
+	LocalID     string
+	Channel     string
+	Protocol    string
+	Error       error
+	MessageSize int64
+}
+
+const (
+	RedisDoAuthMetric       = "RedisDoAuth"
+	RedisCloseMetric        = "RedisClose"
+	RedisDialMetric         = "RedisDial"
+	PubSubPublishMetric     = "PubSubPublish"
+	PubSubReceiveMetric     = "PubSubReceive"
+	PubSubSubscribeMetric   = "PubSubSubscribe"
+	PubSubUnsubscribeMetric = "PubSubUnsubscribe"
+)
+
 const (
 	defaultShortMessageInTimeout = 1 * time.Millisecond
 	defaultLongMessageInTimeout  = 1 * time.Minute
@@ -122,8 +142,15 @@ func (w *Watcher) SetUpdateCallback(callback func(string)) error {
 // Update publishes a message to all other casbin instances telling them to
 // invoke their update callback
 func (w *Watcher) Update() error {
+	startTime := time.Now()
 	if _, err := w.pubConn.Do("PUBLISH", w.options.Channel, w.options.LocalID); err != nil {
+		if w.options.RecordMetrics != nil {
+			w.options.RecordMetrics(w.createMetrics(PubSubPublishMetric, startTime, err))
+		}
 		return err
+	}
+	if w.options.RecordMetrics != nil {
+		w.options.RecordMetrics(w.createMetrics(PubSubPublishMetric, startTime, nil))
 	}
 
 	return nil
@@ -152,20 +179,11 @@ func (w *Watcher) connectPub(addr string) error {
 		return nil
 	}
 
-	c, err := redis.Dial(w.options.Protocol, addr)
+	c, err := w.dial(addr)
 	if err != nil {
 		return err
 	}
-
-	if w.options.Password != "" {
-		_, err := c.Do("AUTH", w.options.Password)
-		if err != nil {
-			c.Close()
-			return err
-		}
-	}
-
-	w.pubConn = c
+	w.pubConn = *c
 	return nil
 }
 
@@ -175,39 +193,89 @@ func (w *Watcher) connectSub(addr string) error {
 		return nil
 	}
 
-	c, err := redis.Dial(w.options.Protocol, addr)
+	c, err := w.dial(addr)
 	if err != nil {
 		return err
 	}
+	w.subConn = *c
+	return nil
+}
 
+func (w *Watcher) dial(addr string) (*redis.Conn, error) {
+	startTime := time.Now()
+	c, err := redis.Dial(w.options.Protocol, addr)
+	if err != nil {
+		if w.options.RecordMetrics != nil {
+			w.options.RecordMetrics(w.createMetrics(RedisDialMetric, startTime, err))
+		}
+		return nil, err
+	}
+	if w.options.RecordMetrics != nil {
+		w.options.RecordMetrics(w.createMetrics(RedisDialMetric, startTime, nil))
+	}
 	if w.options.Password != "" {
-		_, err := c.Do("AUTH", w.options.Password)
+		startTime = time.Now()
+		_, err = c.Do("AUTH", w.options.Password)
 		if err != nil {
-			c.Close()
-			return err
+			if w.options.RecordMetrics != nil {
+				w.options.RecordMetrics(w.createMetrics(RedisDoAuthMetric, startTime, err))
+			}
+			startTime = time.Now()
+			err2 := c.Close()
+			if w.options.RecordMetrics != nil {
+				w.options.RecordMetrics(w.createMetrics(RedisCloseMetric, startTime, err2))
+			}
+			return nil, err
+		}
+		if w.options.RecordMetrics != nil {
+			w.options.RecordMetrics(w.createMetrics(RedisDoAuthMetric, startTime, nil))
 		}
 	}
+	return &c, nil
+}
 
-	w.subConn = c
-	return nil
+func (w *Watcher) unsubscribe(psc redis.PubSubConn) {
+	startTime := time.Now()
+	err := psc.Unsubscribe()
+	if w.options.RecordMetrics != nil {
+		w.options.RecordMetrics(w.createMetrics(PubSubUnsubscribeMetric, startTime, err))
+	}
 }
 
 func (w *Watcher) subscribe() error {
 	psc := redis.PubSubConn{Conn: w.subConn}
-
+	startTime := time.Now()
 	if err := psc.Subscribe(w.options.Channel); err != nil {
+		if w.options.RecordMetrics != nil {
+			w.options.RecordMetrics(w.createMetrics(PubSubSubscribeMetric, startTime, err))
+		}
 		return err
 	}
-	defer psc.Unsubscribe()
+	if w.options.RecordMetrics != nil {
+		w.options.RecordMetrics(w.createMetrics(PubSubSubscribeMetric, startTime, nil))
+	}
+	defer w.unsubscribe(psc)
 
 	for {
+		startTime := time.Now()
 		msg := psc.Receive()
 		switch n := msg.(type) {
 		case error:
+			if w.options.RecordMetrics != nil {
+				w.options.RecordMetrics(w.createMetrics(PubSubReceiveMetric, startTime, n))
+			}
 			return n
 		case redis.Message:
+			if w.options.RecordMetrics != nil {
+				watcherMetrics := w.createMetrics(PubSubReceiveMetric, startTime, nil)
+				watcherMetrics.MessageSize = int64(len(n.Data))
+				w.options.RecordMetrics(watcherMetrics)
+			}
 			w.messagesIn <- msg.(redis.Message)
 		case redis.Subscription:
+			if w.options.RecordMetrics != nil {
+				w.options.RecordMetrics(w.createMetrics(PubSubReceiveMetric, startTime, nil))
+			}
 			if n.Count == 0 {
 				return nil
 			}
@@ -217,7 +285,7 @@ func (w *Watcher) subscribe() error {
 }
 
 func (w *Watcher) messageInProcessor() {
-	doCallback := false
+	w.options.callbackPending = false
 	var data string
 	timeOut := w.options.SquashTimeoutLong
 	go func() {
@@ -234,27 +302,38 @@ func (w *Watcher) messageInProcessor() {
 						w.callback(data)
 					case w.options.IgnoreSelf && data == w.options.LocalID: // ignore message
 					case !w.options.IgnoreSelf && w.options.SquashMessages:
-						doCallback = true
+						w.options.callbackPending = true
 					case w.options.IgnoreSelf && data != w.options.LocalID && !w.options.SquashMessages:
 						w.callback(data)
 					case w.options.IgnoreSelf && data != w.options.LocalID && w.options.SquashMessages:
-						doCallback = true
+						w.options.callbackPending = true
 					default:
 						w.callback(data)
 					}
 				}
-				if doCallback { // set short timeout
+				if w.options.callbackPending { // set short timeout
 					timeOut = w.options.SquashTimeoutShort
 				}
 			case <-time.After(timeOut):
-				if doCallback {
+				if w.options.callbackPending {
 					w.callback(data) // data will be last message recieved
-					doCallback = false
+					w.options.callbackPending = false
 					timeOut = w.options.SquashTimeoutLong // long timeout
 				}
 			}
 		}
 	}()
+}
+
+func (w *Watcher) createMetrics(metricsName string, startTime time.Time, err error) *WatcherMetrics {
+	return &WatcherMetrics{
+		Name:      metricsName,
+		Channel:   w.options.Channel,
+		LocalID:   w.options.LocalID,
+		Protocol:  w.options.Protocol,
+		LatencyMs: float64(time.Since(startTime)) / float64(time.Millisecond),
+		Error:     err,
+	}
 }
 
 // return option settings
@@ -265,7 +344,15 @@ func (w *Watcher) GetWatcherOptions() WatcherOptions {
 func finalizer(w *Watcher) {
 	w.once.Do(func() {
 		close(w.closed)
-		w.subConn.Close()
-		w.pubConn.Close()
+		startTime := time.Now()
+		err := w.subConn.Close()
+		if w.options.RecordMetrics != nil {
+			w.options.RecordMetrics(w.createMetrics(RedisCloseMetric, startTime, err))
+		}
+		startTime = time.Now()
+		err = w.pubConn.Close()
+		if w.options.RecordMetrics != nil {
+			w.options.RecordMetrics(w.createMetrics(RedisCloseMetric, startTime, err))
+		}
 	})
 }

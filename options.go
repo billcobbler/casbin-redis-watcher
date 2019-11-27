@@ -14,9 +14,11 @@ type WatcherOptions struct {
 	Protocol           string
 	IgnoreSelf         bool
 	LocalID            string
+	RecordMetrics      func(*WatcherMetrics)
 	SquashMessages     bool
 	SquashTimeoutShort time.Duration
 	SquashTimeoutLong  time.Duration
+	callbackPending    bool
 }
 
 type WatcherOption func(*WatcherOptions)
@@ -69,6 +71,12 @@ func SquashMessages(squash bool) WatcherOption {
 	}
 }
 
+func RecordMetrics(callback func(*WatcherMetrics)) WatcherOption {
+	return func(options *WatcherOptions) {
+		options.RecordMetrics = callback
+	}
+}
+
 func SquashTimeoutShort(d time.Duration) WatcherOption {
 	return func(options *WatcherOptions) {
 		options.SquashTimeoutShort = d
@@ -79,4 +87,13 @@ func SquashTimeoutLong(d time.Duration) WatcherOption {
 	return func(options *WatcherOptions) {
 		options.SquashTimeoutLong = d
 	}
+}
+
+// IsCallbackPending
+func IsCallbackPending(w *Watcher, shouldClear bool) bool {
+	r := w.options.callbackPending
+	if shouldClear {
+		w.options.callbackPending = false
+	}
+	return r
 }
