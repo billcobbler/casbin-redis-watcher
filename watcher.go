@@ -316,8 +316,8 @@ func (w *Watcher) messageInProcessor() {
 				}
 			case <-time.After(timeOut):
 				if w.options.callbackPending {
-					w.callback(data) // data will be last message recieved
 					w.options.callbackPending = false
+					w.callback(data)                      // data will be last message recieved
 					timeOut = w.options.SquashTimeoutLong // long timeout
 				}
 			}
