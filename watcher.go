@@ -93,10 +93,14 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 			case <-w.closed:
 				return
 			default:
-				err := w.subscribe()
-				if err != nil {
-					fmt.Printf("Failure from Redis subscription: %v", err)
+				err := w.connect(addr)
+				if err == nil {
+					err = w.subscribe()
 				}
+				if err != nil {
+					fmt.Printf("Failure from Redis subscription: %v\n", err)
+				}
+				time.Sleep(2 * time.Second)
 			}
 		}
 	}()
@@ -162,12 +166,24 @@ func (w *Watcher) Close() {
 }
 
 func (w *Watcher) connect(addr string) error {
-	if err := w.connectPub(addr); err != nil {
-		return err
+	var pubConnErr error
+	if w.pubConn != nil {
+		pubConnErr = w.pubConn.Err()
+	}
+	if w.pubConn == nil || pubConnErr != nil {
+		if err := w.connectPub(addr); err != nil {
+			return err
+		}
 	}
 
-	if err := w.connectSub(addr); err != nil {
-		return err
+	var subConnErr error
+	if w.subConn != nil {
+		subConnErr = w.subConn.Err()
+	}
+	if w.subConn == nil || subConnErr != nil {
+		if err := w.connectSub(addr); err != nil {
+			return err
+		}
 	}
 
 	return nil
