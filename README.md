@@ -5,7 +5,7 @@ Redis Watcher is a [Redis](http://redis.io) watcher for [Casbin](https://github.
 
 ## Installation
 
-    go get github.com/billcobbler/casbin-redis-watcher
+    go get github.com/billcobbler/casbin-redis-watcher/v2
 
 ## Simple Example
 
@@ -15,7 +15,7 @@ package main
 import (
     "github.com/casbin/casbin"
     "github.com/casbin/casbin/util"
-    "github.com/billcobbler/casbin-redis-watcher"
+    rediswatcher "github.com/billcobbler/casbin-redis-watcher/v2"
 )
 
 func updateCallback(msg string) {
@@ -39,6 +39,45 @@ func main() {
     // Update the policy to test the effect.
     // You should see "[casbin rules updated]" in the log.
     e.SavePolicy()
+}
+```
+
+## Custom reconnect behaviour
+```go
+package main
+
+import (
+	"time"
+
+	"github.com/casbin/casbin"
+	"github.com/casbin/casbin/util"
+
+	rediswatcher "github.com/billcobbler/casbin-redis-watcher/v2"
+)
+
+func updateCallback(msg string) {
+	util.LogPrint(msg)
+}
+
+func main() {
+	// Initialize the watcher.
+	// Use the Redis host as parameter.
+	w, _ := rediswatcher.NewWatcher("127.0.0.1:6379", rediswatcher.ReconnectThreshold(5*time.Second), rediswatcher.ReconnectFailureCallback(func(err error) {
+		// e.g. print error to logs
+	}))
+
+	// Initialize the enforcer.
+	e := casbin.NewEnforcer("examples/rbac_model.conf", "examples/rbac_policy.csv")
+
+	// Set the watcher for the enforcer.
+	e.SetWatcher(w)
+
+	// Set callback to local example
+	w.SetUpdateCallback(updateCallback)
+
+	// Update the policy to test the effect.
+	// You should see "[casbin rules updated]" in the log.
+	e.SavePolicy()
 }
 ```
 

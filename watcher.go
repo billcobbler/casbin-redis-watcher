@@ -1,11 +1,10 @@
 package rediswatcher
 
 import (
+	"fmt"
 	"runtime"
 	"sync"
 	"time"
-
-	"fmt"
 
 	"github.com/casbin/casbin/v2/persist"
 	"github.com/garyburd/redigo/redis"
@@ -72,6 +71,10 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 		LocalID:            uuid.New().String(),
 		SquashTimeoutShort: defaultShortMessageInTimeout,
 		SquashTimeoutLong:  defaultLongMessageInTimeout,
+		reconnectThreshold: 2 * time.Second,
+		reconnectFailureCallback: func(err error) {
+			fmt.Printf("Failure from Redis subscription: %v\n", err)
+		},
 	}
 
 	for _, setter := range setters {
@@ -98,9 +101,10 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 					err = w.subscribe()
 				}
 				if err != nil {
-					fmt.Printf("Failure from Redis subscription: %v\n", err)
+					// Make callback on error
+					w.options.reconnectFailureCallback(err)
 				}
-				time.Sleep(2 * time.Second)
+				time.Sleep(w.options.reconnectThreshold)
 			}
 		}
 	}()
