@@ -72,7 +72,7 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 		SquashTimeoutShort: defaultShortMessageInTimeout,
 		SquashTimeoutLong:  defaultLongMessageInTimeout,
 		reconnectThreshold: 2 * time.Second,
-		reconnectFailureCallback: func(err error) {
+		subscriptionFailureCallback: func(err error) {
 			fmt.Printf("Failure from Redis subscription: %v\n", err)
 		},
 	}
@@ -101,8 +101,10 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 					err = w.subscribe()
 				}
 				if err != nil {
-					// Make callback on error
-					w.options.reconnectFailureCallback(err)
+					if w.options.subscriptionFailureCallback != nil {
+						// Make callback on error
+						w.options.subscriptionFailureCallback(err)
+					}
 				}
 				time.Sleep(w.options.reconnectThreshold)
 			}

@@ -13,8 +13,7 @@ func TestOptions(t *testing.T) {
 		Password:           "pa1",
 		Protocol:           "pr1",
 		reconnectThreshold: 7 * time.Second,
-		reconnectFailureCallback: func(err error) {
-			t.Logf("received error: %+v\n", err)
+		subscriptionFailureCallback: func(err error) {
 			callbackInvoked = callbackInvoked + 1
 		},
 	}
@@ -23,9 +22,9 @@ func TestOptions(t *testing.T) {
 		t.Errorf("Reconnect threshold should be '7s', received '%s' instead", o.Password)
 	}
 
-	o.reconnectFailureCallback(fmt.Errorf("test_error"))
+	o.subscriptionFailureCallback(fmt.Errorf("test_error"))
 	if callbackInvoked != 1 {
-		t.Errorf("Reconnect failure callback not invoked")
+		t.Errorf("Subscription failure callback not invoked")
 	}
 
 	// test single option
@@ -40,8 +39,7 @@ func TestOptions(t *testing.T) {
 	}
 
 	// test multiple options
-	o.optionBuilder(Channel("ch3"), Password("pa3"), Protocol("pr3"), ReconnectThreshold(time.Second), ReconnectFailureCallback(func(err error) {
-		t.Logf("received error #2: %+v\n", err)
+	o.optionBuilder(Channel("ch3"), Password("pa3"), Protocol("pr3"), ReconnectThreshold(time.Second), SubscriptionFailureCallback(func(err error) {
 		callbackInvoked = callbackInvoked + 9
 	}))
 
@@ -61,9 +59,9 @@ func TestOptions(t *testing.T) {
 		t.Errorf("Reconnect threshold should be '1s', received '%s' instead", o.reconnectThreshold)
 	}
 
-	o.reconnectFailureCallback(fmt.Errorf("test_error"))
+	o.subscriptionFailureCallback(fmt.Errorf("test_error"))
 	if callbackInvoked != 10 {
-		t.Errorf("Reconnect failure callback not invoked")
+		t.Errorf("Subscription failure callback not invoked")
 	}
 }
 
