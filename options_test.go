@@ -7,14 +7,14 @@ import (
 )
 
 func TestOptions(t *testing.T) {
-	callbackInvoked := 0
+	verifyCounter := 0
 	o := WatcherOptions{
 		Channel:              "ch1",
 		Password:             "pa1",
 		Protocol:             "pr1",
 		resubscribeThreshold: 7 * time.Second,
 		subscriptionFailureCallback: func(err error) {
-			callbackInvoked = callbackInvoked + 1
+			verifyCounter = verifyCounter + 1
 		},
 	}
 
@@ -23,7 +23,7 @@ func TestOptions(t *testing.T) {
 	}
 
 	o.subscriptionFailureCallback(fmt.Errorf("test_error"))
-	if callbackInvoked != 1 {
+	if verifyCounter != 1 {
 		t.Errorf("Subscription failure callback not invoked")
 	}
 
@@ -40,7 +40,7 @@ func TestOptions(t *testing.T) {
 
 	// test multiple options
 	o.optionBuilder(Channel("ch3"), Password("pa3"), Protocol("pr3"), ResubscribeThreshold(time.Second), SubscriptionFailureCallback(func(err error) {
-		callbackInvoked = callbackInvoked + 9
+		verifyCounter = verifyCounter + 9
 	}))
 
 	if o.Channel != "ch3" {
@@ -60,7 +60,7 @@ func TestOptions(t *testing.T) {
 	}
 
 	o.subscriptionFailureCallback(fmt.Errorf("test_error"))
-	if callbackInvoked != 10 {
+	if verifyCounter != 10 {
 		t.Errorf("Subscription failure callback not invoked")
 	}
 }
