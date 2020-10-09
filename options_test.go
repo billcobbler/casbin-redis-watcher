@@ -58,7 +58,7 @@ func TestOptions(t *testing.T) {
 	}
 
 	if o.reconnectThreshold != time.Second {
-		t.Errorf("Reconnect threshold should be '1s', received '%s' instead", o.Password)
+		t.Errorf("Reconnect threshold should be '1s', received '%s' instead", o.reconnectThreshold)
 	}
 
 	o.reconnectFailureCallback(fmt.Errorf("test_error"))
