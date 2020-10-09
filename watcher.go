@@ -66,12 +66,12 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 	}
 
 	w.options = WatcherOptions{
-		Channel:            "/casbin",
-		Protocol:           "tcp",
-		LocalID:            uuid.New().String(),
-		SquashTimeoutShort: defaultShortMessageInTimeout,
-		SquashTimeoutLong:  defaultLongMessageInTimeout,
-		reconnectThreshold: 2 * time.Second,
+		Channel:              "/casbin",
+		Protocol:             "tcp",
+		LocalID:              uuid.New().String(),
+		SquashTimeoutShort:   defaultShortMessageInTimeout,
+		SquashTimeoutLong:    defaultLongMessageInTimeout,
+		resubscribeThreshold: 2 * time.Second,
 		subscriptionFailureCallback: func(err error) {
 			fmt.Printf("Failure from Redis subscription: %v\n", err)
 		},
@@ -106,7 +106,7 @@ func NewWatcher(addr string, setters ...WatcherOption) (persist.Watcher, error) 
 						w.options.subscriptionFailureCallback(err)
 					}
 				}
-				time.Sleep(w.options.reconnectThreshold)
+				time.Sleep(w.options.resubscribeThreshold)
 			}
 		}
 	}()

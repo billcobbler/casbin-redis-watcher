@@ -19,7 +19,7 @@ type WatcherOptions struct {
 	SquashTimeoutShort          time.Duration
 	SquashTimeoutLong           time.Duration
 	callbackPending             bool
-	reconnectThreshold          time.Duration   // Threshold for watcher to try reconnect after disconnection.
+	resubscribeThreshold        time.Duration   // Threshold for watcher to try resubscribe after error.
 	subscriptionFailureCallback func(err error) // Callback on subscription failure.
 }
 
@@ -73,9 +73,9 @@ func SquashMessages(squash bool) WatcherOption {
 	}
 }
 
-func ReconnectThreshold(threshold time.Duration) WatcherOption {
+func ResubscribeThreshold(threshold time.Duration) WatcherOption {
 	return func(options *WatcherOptions) {
-		options.reconnectThreshold = threshold
+		options.resubscribeThreshold = threshold
 	}
 }
 

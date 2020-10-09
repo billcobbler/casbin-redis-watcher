@@ -9,17 +9,17 @@ import (
 func TestOptions(t *testing.T) {
 	callbackInvoked := 0
 	o := WatcherOptions{
-		Channel:            "ch1",
-		Password:           "pa1",
-		Protocol:           "pr1",
-		reconnectThreshold: 7 * time.Second,
+		Channel:              "ch1",
+		Password:             "pa1",
+		Protocol:             "pr1",
+		resubscribeThreshold: 7 * time.Second,
 		subscriptionFailureCallback: func(err error) {
 			callbackInvoked = callbackInvoked + 1
 		},
 	}
 
-	if o.reconnectThreshold != 7*time.Second {
-		t.Errorf("Reconnect threshold should be '7s', received '%s' instead", o.Password)
+	if o.resubscribeThreshold != 7*time.Second {
+		t.Errorf("Resubscribe threshold should be '7s', received '%s' instead", o.Password)
 	}
 
 	o.subscriptionFailureCallback(fmt.Errorf("test_error"))
@@ -39,7 +39,7 @@ func TestOptions(t *testing.T) {
 	}
 
 	// test multiple options
-	o.optionBuilder(Channel("ch3"), Password("pa3"), Protocol("pr3"), ReconnectThreshold(time.Second), SubscriptionFailureCallback(func(err error) {
+	o.optionBuilder(Channel("ch3"), Password("pa3"), Protocol("pr3"), ResubscribeThreshold(time.Second), SubscriptionFailureCallback(func(err error) {
 		callbackInvoked = callbackInvoked + 9
 	}))
 
@@ -55,8 +55,8 @@ func TestOptions(t *testing.T) {
 		t.Errorf("Protocol should be 'pr3', received '%s' instead", o.Password)
 	}
 
-	if o.reconnectThreshold != time.Second {
-		t.Errorf("Reconnect threshold should be '1s', received '%s' instead", o.reconnectThreshold)
+	if o.resubscribeThreshold != time.Second {
+		t.Errorf("Resubscribe threshold should be '1s', received '%s' instead", o.resubscribeThreshold)
 	}
 
 	o.subscriptionFailureCallback(fmt.Errorf("test_error"))

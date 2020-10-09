@@ -62,7 +62,7 @@ func updateCallback(msg string) {
 func main() {
 	// Initialize the watcher.
 	// Use the Redis host as parameter.
-	w, _ := rediswatcher.NewWatcher("127.0.0.1:6379", rediswatcher.ReconnectThreshold(5*time.Second), rediswatcher.SubscriptionFailureCallback(func(err error) {
+	w, _ := rediswatcher.NewWatcher("127.0.0.1:6379", rediswatcher.ResubscribeThreshold(5*time.Second), rediswatcher.SubscriptionFailureCallback(func(err error) {
 		// e.g. print error to logs
 	}))
 
