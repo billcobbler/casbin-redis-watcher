@@ -1,12 +1,30 @@
 package rediswatcher
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+	"time"
+)
 
 func TestOptions(t *testing.T) {
+	verifyCounter := 0
 	o := WatcherOptions{
-		Channel:  "ch1",
-		Password: "pa1",
-		Protocol: "pr1",
+		Channel:              "ch1",
+		Password:             "pa1",
+		Protocol:             "pr1",
+		resubscribeThreshold: 7 * time.Second,
+		subscriptionFailureCallback: func(err error) {
+			verifyCounter = verifyCounter + 1
+		},
+	}
+
+	if o.resubscribeThreshold != 7*time.Second {
+		t.Errorf("Resubscribe threshold should be '7s', received '%s' instead", o.Password)
+	}
+
+	o.subscriptionFailureCallback(fmt.Errorf("test_error"))
+	if verifyCounter != 1 {
+		t.Errorf("Subscription failure callback not invoked")
 	}
 
 	// test single option
@@ -21,7 +39,9 @@ func TestOptions(t *testing.T) {
 	}
 
 	// test multiple options
-	o.optionBuilder(Channel("ch3"), Password("pa3"), Protocol("pr3"))
+	o.optionBuilder(Channel("ch3"), Password("pa3"), Protocol("pr3"), ResubscribeThreshold(time.Second), SubscriptionFailureCallback(func(err error) {
+		verifyCounter = verifyCounter + 9
+	}))
 
 	if o.Channel != "ch3" {
 		t.Errorf("Channel should be 'ch3', received '%s' instead", o.Channel)
@@ -33,6 +53,15 @@ func TestOptions(t *testing.T) {
 
 	if o.Protocol != "pr3" {
 		t.Errorf("Protocol should be 'pr3', received '%s' instead", o.Password)
+	}
+
+	if o.resubscribeThreshold != time.Second {
+		t.Errorf("Resubscribe threshold should be '1s', received '%s' instead", o.resubscribeThreshold)
+	}
+
+	o.subscriptionFailureCallback(fmt.Errorf("test_error"))
+	if verifyCounter != 10 {
+		t.Errorf("Subscription failure callback not invoked")
 	}
 }
 
