@@ -10,6 +10,7 @@ type WatcherOptions struct {
 	Channel            string
 	PubConn            redis.Conn
 	SubConn            redis.Conn
+	Username           string
 	Password           string
 	Protocol           string
 	IgnoreSelf         bool
@@ -26,6 +27,12 @@ type WatcherOption func(*WatcherOptions)
 func Channel(subject string) WatcherOption {
 	return func(options *WatcherOptions) {
 		options.Channel = subject
+	}
+}
+
+func Username(username string) WatcherOption {
+	return func(options *WatcherOptions) {
+		options.Username = username
 	}
 }
 
