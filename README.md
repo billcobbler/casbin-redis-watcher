@@ -5,7 +5,7 @@ Redis Watcher is a [Redis](http://redis.io) watcher for [Casbin](https://github.
 
 ## Installation
 
-    go get github.com/billcobbler/casbin-redis-watcher
+    go get github.com/billcobbler/casbin-redis-watcher/v2
 
 ## Simple Example
 
@@ -15,7 +15,7 @@ package main
 import (
     "github.com/casbin/casbin"
     "github.com/casbin/casbin/util"
-    "github.com/billcobbler/casbin-redis-watcher"
+    "github.com/billcobbler/casbin-redis-watcher/v2"
 )
 
 func updateCallback(msg string) {
