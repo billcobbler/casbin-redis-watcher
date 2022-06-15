@@ -15,7 +15,7 @@ package main
 import (
     "github.com/casbin/casbin"
     "github.com/casbin/casbin/util"
-    rediswatcher "github.com/billcobbler/casbin-redis-watcher/v2"
+    "github.com/billcobbler/casbin-redis-watcher/v2"
 )
 
 func updateCallback(msg string) {

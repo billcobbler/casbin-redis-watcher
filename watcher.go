@@ -237,7 +237,14 @@ func (w *Watcher) dial(addr string) (*redis.Conn, error) {
 	}
 	if w.options.Password != "" {
 		startTime = time.Now()
-		_, err = c.Do("AUTH", w.options.Password)
+
+		// https://redis.io/commands/auth
+		username := "default"
+		if w.options.Username != "" {
+			username = w.options.Username
+		}
+
+		_, err = c.Do("AUTH", username, w.options.Password)
 		if err != nil {
 			if w.options.RecordMetrics != nil {
 				w.options.RecordMetrics(w.createMetrics(RedisDoAuthMetric, startTime, err))
