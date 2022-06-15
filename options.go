@@ -7,19 +7,21 @@ import (
 )
 
 type WatcherOptions struct {
-	Channel            string
-	PubConn            redis.Conn
-	SubConn            redis.Conn
-	Username           string
-	Password           string
-	Protocol           string
-	IgnoreSelf         bool
-	LocalID            string
-	RecordMetrics      func(*WatcherMetrics)
-	SquashMessages     bool
-	SquashTimeoutShort time.Duration
-	SquashTimeoutLong  time.Duration
-	callbackPending    bool
+	Channel                     string
+	PubConn                     redis.Conn
+	SubConn                     redis.Conn
+	Username                    string
+	Password                    string
+	Protocol                    string
+	IgnoreSelf                  bool
+	LocalID                     string
+	RecordMetrics               func(*WatcherMetrics)
+	SquashMessages              bool
+	SquashTimeoutShort          time.Duration
+	SquashTimeoutLong           time.Duration
+	callbackPending             bool
+	resubscribeThreshold        time.Duration   // Threshold for watcher to try resubscribe after error.
+	subscriptionFailureCallback func(err error) // Callback on subscription failure.
 }
 
 type WatcherOption func(*WatcherOptions)
@@ -75,6 +77,18 @@ func IgnoreSelf(ignore bool) WatcherOption {
 func SquashMessages(squash bool) WatcherOption {
 	return func(options *WatcherOptions) {
 		options.SquashMessages = squash
+	}
+}
+
+func ResubscribeThreshold(threshold time.Duration) WatcherOption {
+	return func(options *WatcherOptions) {
+		options.resubscribeThreshold = threshold
+	}
+}
+
+func SubscriptionFailureCallback(callback func(error)) WatcherOption {
+	return func(options *WatcherOptions) {
+		options.subscriptionFailureCallback = callback
 	}
 }
 
